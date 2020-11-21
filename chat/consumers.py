@@ -9,21 +9,32 @@ from channels.consumer import SyncConsumer, AsyncConsumer
 # coding and decoding cumsumver for asynchronously
 from channels.generic.websocket import JsonWebsocketConsumer, AsyncJsonWebsocketConsumer
 
+from channels.exceptions import StopConsumer
+
 class ChatCunsumer(WebsocketConsumer):
     def connect(self):
         self.accept()
+        # self.close()  # close websocket its default method
 
     def disconnect(self, code):
         # code - error code
         pass
 
     def receive(self, text_data=None, bytes_data=None):
+
+        # in class exist 'scope' its like receive in django views
+        for h in self.scope['headers']:
+            print('header', h[0], ' >> ', h[1], '\n**')
+        print(self.scope['url_route'])
+        print(self.scope['path'])
+
         # receive and send back this message
         json_data = json.loads(text_data)
         message = json_data['message']
         self.send(text_data=json.dumps({
             'message': message
         }))
+
 
 
 class AsyncChatCunsumer(AsyncWebsocketConsumer):
@@ -56,6 +67,9 @@ class BaseSyncConsumer(SyncConsumer):
             'type': 'websocket.send',
             'text': event['text']  # send back event with our text
         })
+
+    def websocket_disconnect(self):  # in base consumers necessarily define disconnect
+        raise StopConsumer()
 
 
 class BaseAsyncConsumer(AsyncConsumer):
