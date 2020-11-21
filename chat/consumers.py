@@ -4,6 +4,8 @@ import json
 from channels.generic.websocket import WebsocketConsumer, AsyncWebsocketConsumer
 # every consumer have connect, disconnect, recieve
 
+from channels.consumer import SyncConsumer
+
 class ChatCunsumer(WebsocketConsumer):
     def connect(self):
         self.accept()
@@ -36,3 +38,18 @@ class AsyncChatCunsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'message': message
         }))
+
+
+class BaseSyncConsumer(SyncConsumer):
+    # for asgi protocol type, 'cause SyncConsumer prootocol like asgi protocol
+    # and asgi have 4 type events: websocket.send, websocket.accept, websocket.receive, websocket.disconnect
+    def websocket_connect(self, event):  # replace point to underscore for event like websocket_connect
+        self.send({
+            'type': 'websocket.accept'  # websocket.accept its event, and first item will be type
+        })
+
+    def websocket_receive(self, event):
+        self.send({
+            'type': 'websocket.send',
+            'text': event['text']  # send back event with our text
+        })
