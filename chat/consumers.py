@@ -11,6 +11,8 @@ from channels.generic.websocket import JsonWebsocketConsumer, AsyncJsonWebsocket
 
 from channels.exceptions import StopConsumer
 
+from asgiref.sync import async_to_sync  # for sync consumers
+
 class ChatCunsumer(WebsocketConsumer):
     def connect(self):
         self.accept()
@@ -69,7 +71,7 @@ class BaseSyncConsumer(SyncConsumer):
         })
 
     def websocket_disconnect(self):  # in base consumers necessarily define disconnect
-        raise StopConsumer()
+        raise StopConsumer()  # in necessarily call raise with stop
 
 
 class BaseAsyncConsumer(AsyncConsumer):
@@ -125,3 +127,53 @@ class ChatAsyncJsonCunsumer(AsyncJsonWebsocketConsumer):
     @classmethod  # redefine DecodeJson classes methods
     async def decode_json(cls, content):
         return await super().decode_json(content)
+
+
+class ChatCunsumerChannels(WebsocketConsumer):
+    def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name'] # from url get room_name
+        async_to_sync(self.channel_layer.group_add)(self.room_name, self.channel_name)  # add user to chat
+        self.accept()
+        # self.close()  # close websocket its default method
+
+    def disconnect(self, code):
+        # code - error code
+        async_to_sync(self.channel_layer.group_discard)(self.room_name, self.channel_name)
+        pass
+
+    def receive(self, text_data=None, bytes_data=None):
+        async_to_sync(self.channel_layer.group_send)(  # send to all users
+            self.room_name,
+            {
+                'type': 'chat.message',  # need to create method where can work woith this type chat_message
+                'text': text_data
+
+            }
+        )
+
+    def chat_message(self, event):  # from chat.message above
+        self.send(text_data=event['text']) # from receive
+
+
+class AsyncChatCunsumerChannels(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        await self.channel_layer.group_add(self.room_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, code):
+        #  code - error code
+        await self.channel_layer.group_discard(self.room_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        await self.channel_layer.group_send(
+            self.room_name,
+            {
+                'type': 'chat.message.custom',
+                'text': text_data
+            }
+        )
+
+    async def chat_message_custom(self, event):  # event its dictionary above from recieve method
+        # create handler
+        await self.send(text_data=event['text'])

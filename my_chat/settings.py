@@ -121,3 +121,15 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/3.1/howto/static-files/
 
 STATIC_URL = '/static/'
+
+# CHANNEL_LAYERS fully asynchronously
+# to call in sync code need to import "from asgiref.sync import async_to_sync"
+# then call like: async_to_sync(channel_layer.group_send)('chat', {})
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}
