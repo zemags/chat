@@ -226,3 +226,73 @@ class AsyncChatCunsumerChannelsDB(AsyncWebsocketConsumer):
     @database_sync_to_async
     def refresh_online(self):
         self.online.refresh_from_db()  # attribute slef.online keep in cunsumer memory, so if we change name in db, its necessarily refresh again from db
+
+
+# working with session
+
+from channels.auth import login, logout
+from django.contrib.auth import get_user_model
+
+class AsyncChatCunsumerChannelsDB(AsyncWebsocketConsumer):
+    async def connect(self):
+
+        #await database_sync_to_async(self.create_online())() can call like this of like decorator
+        await self.create_online()  # if use decorator database_sync_to_async
+
+        user = await self.get_user_from_db()
+        await login(self.scope, user)
+        await database_sync_to_async(self.scope['session'].save)()  # save session to db
+
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        await self.channel_layer.group_add(self.room_name, self.channel_name)
+
+        self.scope['session']['my_var'] = 'hello session var'  # write to session var, its saved in memory
+        await database_sync_to_async(self.scope['session'].save)()  # save var for session in db, its save var after consumer died
+
+        await self.accept()
+
+    async def disconnect(self, code):
+        #  code - error code
+        await self.delete_online()
+        await self.channel_layer.group_discard(self.room_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+
+        # await logout(self.scope)  #
+        # await database_sync_to_async(self.scope['session'].save)()  # save session to db
+        # print(self.scope['user'])  # wait anonym user
+
+        await self.refresh_online()
+        await self.channel_layer.group_send(
+            self.room_name,
+            {
+                'type': 'chat.message.custom',
+                # 'text': text_data
+                #'text': self.online.name  # send back channel name like: "specific.10b13bdcd26243718683549c9d9f1"
+                # 'text': self.scope['session']['my_var']  # send back var from session
+                'text': text_data  # testing login session save
+            }
+        )
+
+    async def chat_message_custom(self, event):  # event its dictionary above from recieve method
+        # create handler
+        await self.send(text_data=event['text'])
+
+    # adding sync methods for work with DB
+    @database_sync_to_async
+    def create_online(self):
+        new, _ = Online.objects.get_or_create(name=self.channel_name)  # create in db
+        self.online = new  # make own attributes, this attribute exist in memory of consumer
+
+    @database_sync_to_async
+    def delete_online(self):
+        Online.objects.filter(name=self.channel_name).delete()
+
+    @database_sync_to_async
+    def refresh_online(self):
+        self.online.refresh_from_db()  # attribute slef.online keep in cunsumer memory, so if we change name in db, its necessarily refresh again from db
+
+    @database_sync_to_async
+    def get_user_from_db(self):
+        # for test login logout lets get user from db
+        return get_user_model().objects.filter(email='admin@admin.com').first()
