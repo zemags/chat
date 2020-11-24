@@ -182,7 +182,7 @@ class AsyncChatCunsumerChannels(AsyncWebsocketConsumer):
 # ----- WORKING WITH DB -----
 
 from channels.db import database_sync_to_async
-from .models import Online
+from chat.models import Online
 
 class AsyncChatCunsumerChannelsDB(AsyncWebsocketConsumer):
     async def connect(self):
