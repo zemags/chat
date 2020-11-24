@@ -1,7 +1,7 @@
 from django.conf.urls import url
 
 from .consumers import ChatCunsumer, AsyncChatCunsumer, BaseSyncConsumer, BaseAsyncConsumer, ChatJsonCunsumer, \
-    ChatAsyncJsonCunsumer, ChatCunsumerChannels, AsyncChatCunsumerChannels
+    ChatAsyncJsonCunsumer, ChatCunsumerChannels, AsyncChatCunsumerChannels, AsyncChatCunsumerChannelsDB
 
 #  list of urls for websocket work
 websocket_urls = [
@@ -14,4 +14,5 @@ websocket_urls = [
 
     url(r'^ws/channel_layer_sync_chat/(?P<room_name>\w+)/$', ChatCunsumerChannels.as_asgi()),  # with channel_layer
     url(r'^ws/channel_layer_async_chat/(?P<room_name>\w+)/$', AsyncChatCunsumerChannels.as_asgi()),  # with async channel_layer
+    url(r'^ws/channel_layer_async_chat_db/(?P<room_name>\w+)/$', AsyncChatCunsumerChannelsDB.as_asgi()),  # with async channel_layer
 ]

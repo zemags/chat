@@ -6,7 +6,7 @@ from channels.generic.websocket import WebsocketConsumer, AsyncWebsocketConsumer
 
 from channels.consumer import SyncConsumer, AsyncConsumer
 
-# coding and decoding cumsumver for asynchronously
+# coding and decoding cumsumer for asynchronously
 from channels.generic.websocket import JsonWebsocketConsumer, AsyncJsonWebsocketConsumer
 
 from channels.exceptions import StopConsumer
@@ -24,7 +24,7 @@ class ChatCunsumer(WebsocketConsumer):
 
     def receive(self, text_data=None, bytes_data=None):
 
-        # in class exist 'scope' its like receive in django views
+        # in class exist 'scope' its like request in django views
         for h in self.scope['headers']:
             print('header', h[0], ' >> ', h[1], '\n**')
         print(self.scope['url_route'])
@@ -71,7 +71,7 @@ class BaseSyncConsumer(SyncConsumer):
         })
 
     def websocket_disconnect(self):  # in base consumers necessarily define disconnect
-        raise StopConsumer()  # in necessarily call raise with stop
+        raise StopConsumer()  # and necessarily call raise with stop
 
 
 class BaseAsyncConsumer(AsyncConsumer):
@@ -132,7 +132,7 @@ class ChatAsyncJsonCunsumer(AsyncJsonWebsocketConsumer):
 class ChatCunsumerChannels(WebsocketConsumer):
     def connect(self):
         self.room_name = self.scope['url_route']['kwargs']['room_name'] # from url get room_name
-        async_to_sync(self.channel_layer.group_add)(self.room_name, self.channel_name)  # add user to chat
+        async_to_sync(self.channel_layer.group_add)(self.room_name, self.channel_name)  # add user to chat self.room_name
         self.accept()
         # self.close()  # close websocket its default method
 
@@ -145,14 +145,14 @@ class ChatCunsumerChannels(WebsocketConsumer):
         async_to_sync(self.channel_layer.group_send)(  # send to all users
             self.room_name,
             {
-                'type': 'chat.message',  # need to create method where can work woith this type chat_message
+                'type': 'chat.message',  # need to create method where can work with this type chat_message
                 'text': text_data
 
             }
         )
 
-    def chat_message(self, event):  # from chat.message above
-        self.send(text_data=event['text']) # from receive
+    def chat_message(self, event):  # from type chat.message above
+        self.send(text_data=event['text'])  # from receive
 
 
 class AsyncChatCunsumerChannels(AsyncWebsocketConsumer):
@@ -177,3 +177,52 @@ class AsyncChatCunsumerChannels(AsyncWebsocketConsumer):
     async def chat_message_custom(self, event):  # event its dictionary above from recieve method
         # create handler
         await self.send(text_data=event['text'])
+
+
+# ----- WORKING WITH DB -----
+
+from channels.db import database_sync_to_async
+from .models import Online
+
+class AsyncChatCunsumerChannelsDB(AsyncWebsocketConsumer):
+    async def connect(self):
+
+        #await database_sync_to_async(self.create_online())() can call like this of like decorator
+        await self.create_online()  # if use decorator database_sync_to_async
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        await self.channel_layer.group_add(self.room_name, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, code):
+        #  code - error code
+        await self.delete_online()
+        await self.channel_layer.group_discard(self.room_name, self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        await self.refresh_online()
+        await self.channel_layer.group_send(
+            self.room_name,
+            {
+                'type': 'chat.message.custom',
+                # 'text': text_data
+                'text': self.online.name  # send back channel name like: "specific.10b13bdcd26243718683549c9d9f1"
+            }
+        )
+
+    async def chat_message_custom(self, event):  # event its dictionary above from recieve method
+        # create handler
+        await self.send(text_data=event['text'])
+
+    # adding sync methods for work with DB
+    @database_sync_to_async
+    def create_online(self):
+        new, _ = Online.objects.get_or_create(name=self.channel_name)  # create in db
+        self.online = new  # make own attributes, this attribute exist in memory of consumer
+
+    @database_sync_to_async
+    def delete_online(self):
+        Online.objects.filter(name=self.channel_name).delete()
+
+    @database_sync_to_async
+    def refresh_online(self):
+        self.online.refresh_from_db()  # attribute slef.online keep in cunsumer memory, so if we change name in db, its necessarily refresh again from db
